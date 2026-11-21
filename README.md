@@ -6,6 +6,22 @@ Multi-tenant SaaS for language schools: scheduling, attendance, a lesson-credit 
 
 > Built by a team of three over ~8 months (760+ commits). This is a public snapshot of the source; the private repo's history was not carried over.
 
+## Screenshots
+
+*All data shown is synthetic.*
+
+| Weekly schedule | Groups |
+|---|---|
+| ![Schedule](docs/screenshots/schedule.png) | ![Groups](docs/screenshots/groups.png) |
+| **Students & credit balances** | **Payments** |
+| ![Students](docs/screenshots/students.png) | ![Finance](docs/screenshots/finance.png) |
+
+<p align="center">
+  <img src="docs/screenshots/mobile-schedule.png" width="260" alt="Mobile schedule">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/mobile-student.png" width="260" alt="Student dashboard (mobile)">
+</p>
+
 ## What it does
 
 - **Scheduling** — recurring lesson blocks generate dated sessions; room / teacher / week views, conflict checks, substitutions, mobile layout.
