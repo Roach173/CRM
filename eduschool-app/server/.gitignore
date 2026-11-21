@@ -1,0 +1,19 @@
+.env
+.env.local
+.env.production
+.env.test
+node_modules/
+dist/
+
+# Generated Prisma diagram
+ERD.svg
+
+# Backup env files
+*.bak
+
+# Temporary diagnostic scripts
+tmp-*.ts
+
+# Personal dev seeds (not for shared branches)
+prisma/seed-adil.ts
+prisma/seed-hunya.ts

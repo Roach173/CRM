@@ -1,0 +1,1884 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "../ERD.svg"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model School {
+  id                     Int                        @id @default(autoincrement())
+  name                   String
+  city                   String
+  country                String                     @default("KG")
+  timezone               String                     @default("Asia/Bishkek")
+  slug                   String                     @unique
+  phone                  String?
+  email                  String                     @unique
+  address                String?
+  description            String?
+  logoUrl                String?
+  isActive               Boolean                    @default(true)
+  blockedAt              DateTime?
+  settings               Json                       @default("{}")
+  onboardingCompleted    Boolean                    @default(false)
+  onboardingCompletedAt  DateTime?
+  onboardingStep         String?
+  createdAt              DateTime                   @default(now())
+  deletedAt              DateTime?
+  activeDays             Int[]
+  workStart              String                     @default("08:00")
+  workEnd                String                     @default("20:00")
+  slotDuration           Int                        @default(80)
+  attendances            Attendance[]
+  cabinets               Cabinet[]
+  enrollments            EnrollmentRequest[]
+  memberships            GroupMembership[]
+  blocks                 LessonBlock[]
+  creditLogs             LessonCreditLog[]
+  sessions               LessonSession[]
+  manualLessonEntries    ManualLessonEntry[]
+  salaryAdjustments      SalaryAdjustment[]
+  scheduleActionLogs     ScheduleActionLog[]
+  scheduleExceptions     ScheduleException[]
+  financeConfig          SchoolFinanceConfig?
+  expenses               Expense[]
+  leads                  Lead[]
+  leadAttributions       LeadAttribution[]
+  marketingCampaigns     MarketingCampaign[]
+  marketingSpends        MarketingSpend[]
+  npsResponses           NpsResponse[]
+  sessionStudents        SessionStudent[]
+  groups                 StudentGroup[]
+  studentPayments        StudentPayment[]
+  subscription           Subscription?
+  teacherPayments        TeacherPayment[]
+  timeSlots              TimeSlot[]
+  users                  User[]
+  integrationConnections IntegrationConnection[]
+  integrationSyncLogs    IntegrationSyncLog[]
+  webhooks               Webhook[]
+  webhookDeliveries      WebhookDelivery[]
+  policyLogs             SchoolPolicyLog[]
+  schedulePolicies       SchoolSchedulePolicy[]
+  monthlySummaries       AttendanceMonthlySummary[]
+  attendanceAudits       AttendanceAudit[]
+  parentProfiles         ParentProfile[]
+  groupProgressions      GroupProgression[]
+  invoices               Invoice[]
+  payments               Payment[]
+  creditIssuances        CreditIssuance[]
+  paymentRefunds         PaymentRefund[]
+  financialAdjustments   FinancialAdjustment[]
+  staffInvites           StaffInvite[]
+  studentFreezes         StudentFreeze[]
+  communicationCampaigns CommunicationCampaign[]
+  communicationTemplates CommunicationTemplate[]
+  calendarNotes          CalendarNote[]
+
+  @@index([isActive])
+  @@index([country])
+}
+
+// Shared admin day-notes on the schedule month/week view.
+// School-scoped (not per-user): every admin/owner of a school sees and edits the same note for a date.
+model CalendarNote {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  date      DateTime @db.Date
+  content   String
+  authorId  Int? // User.id of last editor, for audit; nullable so deleting a user keeps the note
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, date])
+  @@index([schoolId])
+}
+
+// Personal per-user day notes on the student calendar (each user sees only their own).
+// Distinct from the school-shared admin CalendarNote above.
+model StudentCalendarNote {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  schoolId  Int
+  date      DateTime @db.Date
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+model Subscription {
+  id          String             @id @default(cuid())
+  schoolId    Int                @unique
+  plan        SubscriptionPlan   @default(TRIAL)
+  status      SubscriptionStatus @default(TRIALING)
+  trialEndsAt DateTime?
+  graceEndsAt DateTime?
+  paidUntil   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  school      School             @relation(fields: [schoolId], references: [id])
+
+  @@index([status])
+  @@index([trialEndsAt])
+  @@index([graceEndsAt])
+  @@index([paidUntil])
+}
+
+model Cabinet {
+  id        Int           @id @default(autoincrement())
+  name      String
+  capacity  Int           @default(15)
+  schoolId  Int
+  deletedAt DateTime?
+  school    School        @relation(fields: [schoolId], references: [id])
+  blocks    LessonBlock[]
+
+  @@index([schoolId])
+}
+
+model User {
+  id                     Int                   @id @default(autoincrement())
+  email                  String?
+  username               String?
+  password               String
+  role                   Role                  @default(STUDENT)
+  firstName              String
+  lastName               String
+  phone                  String?
+  schoolId               Int?
+  createdAt              DateTime              @default(now())
+  deletedAt              DateTime?
+  archivedAt             DateTime?
+  tokenVersion           Int                   @default(0)
+  twoFactorEnabled       Boolean               @default(false)
+  totpSecret             String?
+  backupCodes            String[]
+  emailVerified          Boolean               @default(false)
+  verificationToken      String?
+  verificationExpires    DateTime?
+  submittedAttendances   Attendance[]          @relation("AttendanceSubmitter")
+  createdManualEntries   ManualLessonEntry[]   @relation("ManualEntryCreator")
+  notifications          Notification[]
+  notificationPreferences NotificationPreference[]
+  refreshTokens          RefreshToken[]
+  resetTokens            ResetToken[]
+  createdAdjustments     SalaryAdjustment[]    @relation("AdjustmentCreator")
+  scheduleActionLogs     ScheduleActionLog[]
+  createdExceptions      ScheduleException[]   @relation("ExceptionCreator")
+  financeConfigUpdates   SchoolFinanceConfig[] @relation("FinanceConfigUpdater")
+  staffProfile           StaffProfile?
+  createdStudentPayments StudentPayment[]      @relation("StudentPaymentCreator")
+  createdExpenses        Expense[]             @relation("ExpenseCreator")
+  studentProfile         StudentProfile?
+  parentProfile          ParentProfile?
+  createdPayments        TeacherPayment[]      @relation("PaymentCreator")
+  voidedTeacherPayments  TeacherPayment[]      @relation("TeacherPaymentVoider")
+  promotedGroups         GroupProgression[]    @relation("ProgressionActor")
+  actorCreditLogs        LessonCreditLog[]     @relation("CreditLogActor")
+  createdInvoices        Invoice[]             @relation("InvoiceCreator")
+  receivedPayments        Payment[]             @relation("PaymentReceiver")
+  voidedPayments          Payment[]             @relation("PaymentVoider")
+  refundedPayments        Payment[]             @relation("PaymentRefunder")
+  issuedCreditIssuances   CreditIssuance[]      @relation("IssuanceActor")
+  reversedCreditIssuances CreditIssuance[]      @relation("IssuanceReverser")
+  createdRefunds          PaymentRefund[]       @relation("RefundCreator")
+  confirmedRefunds        PaymentRefund[]       @relation("RefundConfirmer")
+  voidedRefunds           PaymentRefund[]       @relation("RefundVoider")
+  creditIssuanceReversals CreditIssuanceReversal[]
+  voidedCreditReversals   CreditIssuanceReversal[] @relation("CreditReversalVoider")
+  createdFinancialAdjustments FinancialAdjustment[] @relation("FinancialAdjustmentCreator")
+  voidedFinancialAdjustments  FinancialAdjustment[] @relation("FinancialAdjustmentVoider")
+  createdCommunicationCampaigns CommunicationCampaign[] @relation("CommunicationCampaignCreator")
+  createdCommunicationTemplates CommunicationTemplate[] @relation("CommunicationTemplateCreator")
+  communicationRecipients       CommunicationRecipient[]
+  school                 School?               @relation(fields: [schoolId], references: [id])
+  passkeys               UserPasskey[]
+  createdFreezes         StudentFreeze[]       @relation("FreezeCreator")
+  cancelledFreezes       StudentFreeze[]       @relation("FreezeCanceller")
+  finalizedAttendanceSessions LessonSession[]  @relation("AttendanceFinalizer")
+  reopenedAttendanceSessions  LessonSession[]  @relation("AttendanceReopener")
+  attendanceAudits       AttendanceAudit[]     @relation("AttendanceAuditActor")
+  studentCalendarNotes   StudentCalendarNote[]
+
+  // Login identifiers are unique per-school (tenant), not globally: the same
+  // person can hold a separate account in each school. NULLs are allowed and
+  // Postgres treats them as distinct, so a school may have many email-less users.
+  // phone is NOT unique: siblings commonly share one family phone number, so it
+  // is a contact field only — the actual login identifier for the second+ child
+  // is an auto-generated username (see students.ts POST /, e.g. "<phone>-02").
+  @@unique([schoolId, email])
+  @@unique([schoolId, username])
+  @@index([schoolId, phone])
+  @@index([schoolId])
+  @@index([role])
+  @@index([schoolId, role])
+  @@index([deletedAt])
+  @@index([schoolId, role, archivedAt])
+}
+
+model StudentProfile {
+  id                 Int                        @id @default(autoincrement())
+  userId             Int                        @unique
+  level              String?
+  chapter            Int                        @default(1)
+  credits            Int                        @default(0)
+  // Proportional billing: moneyBalance = som paid toward lessons since the last
+  // price change (an accumulator, never decremented). billingLessonsGranted =
+  // lessons already granted from it. lessons owed = floor(moneyBalance * billingDays / fee),
+  // computed with exact Decimal math so no som is ever lost to rounding.
+  moneyBalance       Decimal                    @default(0) @db.Decimal(12, 2)
+  billingLessonsGranted Int                     @default(0)
+  monthlyFee         Decimal?                   @db.Decimal(10, 2)
+  isFrozen           Boolean                    @default(false)
+  paidUntil          DateTime?
+  isVerified         Boolean                    @default(false)
+  deletedAt          DateTime?
+  notes              String?
+  frozenAt           DateTime?
+  atRiskSince        DateTime?
+  attendances        Attendance[]
+  enrollmentRequests EnrollmentRequest[]
+  memberships        GroupMembership[]          @relation("MembershipProfile")
+  creditLogs         LessonCreditLog[]
+  leads              Lead[]
+  sessionStudents    SessionStudent[]
+  payments           StudentPayment[]
+  monthlySummaries   AttendanceMonthlySummary[]
+  parents            ParentChild[]
+  invoices           Invoice[]
+  financialPayments  Payment[]
+  creditIssuances    CreditIssuance[]
+  financialAdjustments FinancialAdjustment[]
+  attendanceAudits   AttendanceAudit[]
+  user               User                       @relation(fields: [userId], references: [id])
+  enrolledGroups     StudentGroup[]             @relation("GroupStudents")
+  freezes            StudentFreeze[]
+
+  @@index([userId])
+  @@index([isFrozen])
+  @@index([atRiskSince])
+}
+
+model StaffProfile {
+  id                  Int                 @id @default(autoincrement())
+  userId              Int                 @unique
+  salaryRate          Decimal?            @db.Decimal(10, 2)
+  position            String?
+  hireDate            DateTime?
+  deletedAt           DateTime?
+  maxLessonsPerDay    Int?
+  notes               String?
+  rating              Decimal?            @db.Decimal(3, 2)
+  workingDays         Int[]               @default([0, 1, 2, 3, 4, 5])
+  taughtBlocks        LessonBlock[]       @relation("BlockTeacher")
+  substitutions       LessonSession[]     @relation("SessionTeacher")
+  manualLessonEntries ManualLessonEntry[]
+  salaryAdjustments   SalaryAdjustment[]
+  expenses            Expense[]
+  user                User                @relation(fields: [userId], references: [id])
+  payments            TeacherPayment[]
+  rateHistory         TeacherRateLog[]
+
+  @@index([userId])
+}
+
+model StudentGroup {
+  id            Int                 @id @default(autoincrement())
+  schoolId      Int
+  level         String
+  chapter       Int                 @default(1)
+  maxStudents   Int                 @default(15)
+  status        GroupStatus         @default(ACTIVE)
+  startDate     DateTime?
+  endDate       DateTime?
+  createdAt     DateTime            @default(now())
+  deletedAt     DateTime?
+  pricePerMonth Decimal?            @db.Decimal(10, 2)
+  comment       String?
+  enrollments   EnrollmentRequest[]
+  memberships   GroupMembership[]   @relation("GroupMemberships")
+  blocks        LessonBlock[]
+  progressionsFrom GroupProgression[] @relation("ProgressionFrom")
+  progressionsTo   GroupProgression[] @relation("ProgressionTo")
+  invoiceLines  InvoiceLine[]
+  actionLogs    ScheduleActionLog[]
+  school        School              @relation(fields: [schoolId], references: [id])
+  students      StudentProfile[]    @relation("GroupStudents")
+
+  @@index([schoolId])
+  @@index([schoolId, status])
+  @@index([schoolId, deletedAt])
+}
+
+model TimeSlot {
+  id        Int           @id @default(autoincrement())
+  schoolId  Int
+  startTime String
+  endTime   String
+  order     Int           @default(0)
+  blocks    LessonBlock[]
+  school    School        @relation(fields: [schoolId], references: [id])
+
+  @@unique([schoolId, startTime, endTime])
+  @@index([schoolId])
+}
+
+model LessonBlock {
+  id                 Int                 @id @default(autoincrement())
+  schoolId           Int
+  cabinetId          Int?
+  teacherId          Int?
+  startTime          String
+  endTime            String
+  level              String
+  chapter            Int                 @default(1)
+  maxStudents        Int                 @default(15)
+  type               BlockType           @default(GRAMMAR)
+  status             BlockStatus         @default(UPCOMING)
+  startDate          DateTime            @default(now())
+  endDate            DateTime?
+  createdAt          DateTime            @default(now())
+  deletedAt          DateTime?
+  studentGroupId     Int?
+  timeSlotId         Int?
+  days               Int[]
+  parentBlockId      Int?
+  enrollmentRequests EnrollmentRequest[]
+  cabinet            Cabinet?            @relation(fields: [cabinetId], references: [id])
+  school             School              @relation(fields: [schoolId], references: [id])
+  studentGroup       StudentGroup?       @relation(fields: [studentGroupId], references: [id])
+  teacher            StaffProfile?       @relation("BlockTeacher", fields: [teacherId], references: [id])
+  timeSlot           TimeSlot?           @relation(fields: [timeSlotId], references: [id])
+  parent             LessonBlock?        @relation("BlockVersionChain", fields: [parentBlockId], references: [id])
+  children           LessonBlock[]       @relation("BlockVersionChain")
+  sessions           LessonSession[]
+  invoiceLines       InvoiceLine[]
+  actionLogs         ScheduleActionLog[]
+
+  @@index([schoolId])
+  @@index([schoolId, status])
+  @@index([schoolId, deletedAt])
+  @@index([teacherId])
+  @@index([cabinetId])
+  @@index([studentGroupId])
+  @@index([timeSlotId])
+  @@index([schoolId, teacherId])
+  @@index([schoolId, timeSlotId])
+  @@index([parentBlockId])
+}
+
+model LessonSession {
+  id                   Int                   @id @default(autoincrement())
+  schoolId             Int
+  lessonBlockId        Int
+  date                 DateTime
+  teacherId            Int?
+  status               SessionStatus         @default(UPCOMING)
+  createdAt            DateTime              @default(now())
+  deletedAt            DateTime?
+  cabinetIdSnap        Int?
+  endTimeSnap          String?
+  startTimeSnap        String?
+  teacherIdSnap        Int?
+  isManualCabinet      Boolean               @default(false)
+  isManualDate         Boolean               @default(false)
+  isManualTeacher      Boolean               @default(false)
+  isManualTime         Boolean               @default(false)
+  dateOverrideFrom     DateTime?
+  isMakeup             Boolean               @default(false)
+  makeupForSessionId   Int?
+  version              Int                   @default(0)
+  attendanceFinalizedAt DateTime?
+  attendanceFinalizedById Int?
+  attendanceReopenedAt DateTime?
+  attendanceReopenedById Int?
+  attendanceReopenReason String?
+  attendances          Attendance[]
+  attendanceAudits     AttendanceAudit[]
+  attendanceFinalizedBy User?                 @relation("AttendanceFinalizer", fields: [attendanceFinalizedById], references: [id])
+  attendanceReopenedBy User?                  @relation("AttendanceReopener", fields: [attendanceReopenedById], references: [id])
+  lessonBlock          LessonBlock           @relation(fields: [lessonBlockId], references: [id], onDelete: Restrict)
+  makeupForSession     LessonSession?        @relation("MakeupSessions", fields: [makeupForSessionId], references: [id])
+  studentFreezes       StudentFreeze[]
+  makeupSessions       LessonSession[]       @relation("MakeupSessions")
+  school               School                @relation(fields: [schoolId], references: [id])
+  teacher              StaffProfile?         @relation("SessionTeacher", fields: [teacherId], references: [id])
+  actionLogs           ScheduleActionLog[]
+  sessionStudents      SessionStudent[]
+  teacherPaymentLesson TeacherPaymentLesson?
+  creditLogs           LessonCreditLog[]
+
+  @@unique([lessonBlockId, date])
+  @@index([schoolId])
+  @@index([date])
+  @@index([status])
+  @@index([schoolId, date])
+  @@index([teacherId, date])
+  @@index([teacherIdSnap])
+  @@index([teacherIdSnap, date])
+  @@index([status, date])
+  @@index([schoolId, status])
+  @@index([attendanceFinalizedAt])
+  @@index([attendanceFinalizedById])
+  @@index([attendanceReopenedById])
+}
+
+model Attendance {
+  id               Int              @id @default(autoincrement())
+  schoolId         Int
+  lessonSessionId  Int
+  studentProfileId Int
+  status           AttendanceStatus @default(PRESENT)
+  creditDeducted   Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  sessionStudentId Int?             @unique
+  submittedById    Int?
+  lessonSession    LessonSession    @relation(fields: [lessonSessionId], references: [id])
+  school           School           @relation(fields: [schoolId], references: [id])
+  sessionStudent   SessionStudent?  @relation(fields: [sessionStudentId], references: [id])
+  studentProfile   StudentProfile   @relation(fields: [studentProfileId], references: [id])
+  submittedBy      User?            @relation("AttendanceSubmitter", fields: [submittedById], references: [id])
+  creditLogs       LessonCreditLog[] @relation("CreditLogAttendance")
+  auditRows        AttendanceAudit[]
+
+  @@unique([lessonSessionId, studentProfileId])
+  @@index([schoolId])
+  @@index([lessonSessionId])
+  @@index([studentProfileId])
+  @@index([studentProfileId, createdAt])
+  @@index([submittedById])
+}
+
+model AttendanceAudit {
+  id               Int                    @id @default(autoincrement())
+  schoolId         Int
+  lessonSessionId  Int
+  studentProfileId Int?
+  attendanceId     Int?
+  oldStatus        AttendanceStatus?
+  newStatus        AttendanceStatus?
+  actorId          Int
+  reason           String?
+  action           AttendanceAuditAction
+  createdAt        DateTime               @default(now())
+  school           School                 @relation(fields: [schoolId], references: [id])
+  lessonSession    LessonSession          @relation(fields: [lessonSessionId], references: [id])
+  studentProfile   StudentProfile?        @relation(fields: [studentProfileId], references: [id])
+  attendance       Attendance?            @relation(fields: [attendanceId], references: [id])
+  actor            User                   @relation("AttendanceAuditActor", fields: [actorId], references: [id])
+
+  @@index([schoolId, createdAt])
+  @@index([lessonSessionId, createdAt])
+  @@index([studentProfileId])
+  @@index([attendanceId])
+  @@index([actorId, createdAt])
+  @@index([action])
+}
+
+model EnrollmentRequest {
+  id               Int              @id @default(autoincrement())
+  schoolId         Int
+  lessonBlockId    Int?
+  studentProfileId Int
+  status           EnrollmentStatus @default(PENDING)
+  createdAt        DateTime         @default(now())
+  studentGroupId   Int?
+  priority         Int              @default(0)
+  expiresAt        DateTime?
+  lessonBlock      LessonBlock?     @relation(fields: [lessonBlockId], references: [id])
+  school           School           @relation(fields: [schoolId], references: [id])
+  studentGroup     StudentGroup?    @relation(fields: [studentGroupId], references: [id])
+  studentProfile   StudentProfile   @relation(fields: [studentProfileId], references: [id])
+
+  @@index([schoolId])
+  @@index([studentGroupId])
+  @@index([lessonBlockId])
+  @@index([studentProfileId])
+  @@index([studentGroupId, status])
+  @@index([studentProfileId, status])
+  @@index([studentGroupId, status, createdAt])
+}
+
+model LessonCreditLog {
+  id               Int               @id @default(autoincrement())
+  schoolId         Int
+  studentProfileId Int
+  sessionId        Int?
+  attendanceId     Int?
+  paymentId        Int?
+  amount           Int
+  reason           String
+  type             CreditLogType     @default(DEBIT)
+  actorId          Int?
+  priceSnapshot    Int?
+  refundedLogId    Int?
+  idempotencyKey   String?
+  createdAt        DateTime          @default(now())
+  actor            User?             @relation("CreditLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+  attendance       Attendance?       @relation("CreditLogAttendance", fields: [attendanceId], references: [id], onDelete: SetNull)
+  payment          Payment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  school           School            @relation(fields: [schoolId], references: [id])
+  studentProfile   StudentProfile    @relation(fields: [studentProfileId], references: [id])
+  session          LessonSession?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  refundedLog      LessonCreditLog?  @relation("CreditLogRefund", fields: [refundedLogId], references: [id], onDelete: SetNull)
+  refunds          LessonCreditLog[] @relation("CreditLogRefund")
+  issuance         CreditIssuance?   @relation("IssuanceLog")
+  reversalOf       CreditIssuance?   @relation("IssuanceReversalLog")
+  issuanceReversal CreditIssuanceReversal? @relation("CreditReversalLog")
+  voidedReversal   CreditIssuanceReversal? @relation("CreditReversalVoidLog")
+  financialAdjustment FinancialAdjustment?
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId])
+  @@index([studentProfileId])
+  @@index([createdAt])
+  @@index([studentProfileId, type])
+  @@index([attendanceId])
+  @@index([paymentId])
+}
+
+model TeacherPayment {
+  id             Int                    @id @default(autoincrement())
+  schoolId       Int
+  staffProfileId Int
+  period         String
+  lessonsCount   Int
+  rateSnapshot   Decimal                @db.Decimal(10, 2)
+  amount         Decimal                @db.Decimal(10, 2)
+  adjustmentNet  Decimal                @default(0) @db.Decimal(10, 2)
+  // Void instead of delete (same model as Payment): the record stays as an
+  // audit trail with status VOIDED; its TeacherPaymentLesson links are removed
+  // so the sessions become payable again. All salary math excludes VOIDED rows.
+  status         PaymentStatus          @default(CONFIRMED)
+  voidedAt       DateTime?
+  voidedById     Int?
+  voidReason     String?
+  paidAt         DateTime               @default(now())
+  createdById    Int?
+  note           String?
+  idempotencyKey String?
+  createdAt      DateTime               @default(now())
+  createdBy      User?                  @relation("PaymentCreator", fields: [createdById], references: [id])
+  voidedBy       User?                  @relation("TeacherPaymentVoider", fields: [voidedById], references: [id])
+  expense        Expense?
+  school         School                 @relation(fields: [schoolId], references: [id])
+  staffProfile   StaffProfile           @relation(fields: [staffProfileId], references: [id])
+  sessions       TeacherPaymentLesson[]
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId])
+  @@index([staffProfileId])
+  @@index([period])
+}
+
+model TeacherPaymentLesson {
+  id              Int            @id @default(autoincrement())
+  paymentId       Int
+  lessonSessionId Int            @unique
+  payment         TeacherPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  lessonSession   LessonSession  @relation(fields: [lessonSessionId], references: [id])
+
+  @@index([paymentId])
+}
+
+model SalaryAdjustment {
+  id             Int          @id @default(autoincrement())
+  schoolId       Int
+  staffProfileId Int
+  type           AdjType
+  amount         Decimal      @db.Decimal(10, 2)
+  reason         String
+  month          String
+  date           DateTime     @default(now())
+  createdById    Int?
+  idempotencyKey String?
+  createdBy      User?        @relation("AdjustmentCreator", fields: [createdById], references: [id])
+  school         School       @relation(fields: [schoolId], references: [id])
+  staffProfile   StaffProfile @relation(fields: [staffProfileId], references: [id])
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId])
+  @@index([staffProfileId])
+  @@index([staffProfileId, month])
+  @@index([month])
+}
+
+model ManualLessonEntry {
+  id             Int             @id @default(autoincrement())
+  schoolId       Int
+  staffProfileId Int
+  month          String
+  type           ManualEntryType
+  label          String
+  count          Int
+  createdById    Int?
+  createdAt      DateTime        @default(now())
+  idempotencyKey String?
+  createdBy      User?           @relation("ManualEntryCreator", fields: [createdById], references: [id])
+  school         School          @relation(fields: [schoolId], references: [id])
+  staffProfile   StaffProfile    @relation(fields: [staffProfileId], references: [id])
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId])
+  @@index([staffProfileId])
+  @@index([staffProfileId, month])
+  @@index([month])
+}
+
+model Notification {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  schoolId   Int?
+  type       String
+  category   String    @default("SYSTEM")
+  priority   String    @default("NORMAL")
+  title      String
+  body       String
+  actionUrl  String?
+  entityType String?
+  entityId   Int?
+  isRead     Boolean   @default(false)
+  readAt     DateTime?
+  data       Json?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id])
+  communicationRecipients CommunicationRecipient[]
+
+  @@index([userId])
+  @@index([schoolId])
+  @@index([schoolId, createdAt])
+  @@index([userId, isRead])
+  @@index([userId, readAt])
+  @@index([category])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model CommunicationCampaign {
+  id              Int                         @id @default(autoincrement())
+  schoolId        Int
+  createdById     Int
+  title           String
+  body            String
+  category        String
+  priority        String
+  channel         CommunicationChannel        @default(IN_APP)
+  status          CommunicationCampaignStatus @default(DRAFT)
+  targetType      CommunicationTargetType
+  targetConfig    Json?
+  recipientsCount Int                         @default(0)
+  sentCount       Int                         @default(0)
+  skippedCount    Int                         @default(0)
+  failedCount     Int                         @default(0)
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+  sentAt          DateTime?
+  scheduledAt     DateTime?
+  school          School                      @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  createdBy       User                        @relation("CommunicationCampaignCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  recipients      CommunicationRecipient[]
+
+  @@index([schoolId, createdAt])
+  @@index([schoolId, status])
+  @@index([createdById])
+}
+
+model CommunicationTemplate {
+  id          Int                  @id @default(autoincrement())
+  schoolId    Int
+  createdById Int
+
+  name        String
+  title       String
+  body        String
+  category    String               @default("ANNOUNCEMENT")
+  priority    String               @default("NORMAL")
+  channel     CommunicationChannel @default(IN_APP)
+
+  isArchived  Boolean              @default(false)
+
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  school      School               @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  createdBy   User                 @relation("CommunicationTemplateCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, isArchived])
+  @@index([schoolId, createdAt])
+  @@index([createdById])
+}
+
+model CommunicationRecipient {
+  id             Int                          @id @default(autoincrement())
+  campaignId     Int
+  userId         Int
+  notificationId Int?
+  status         CommunicationRecipientStatus @default(PENDING)
+  skippedReason  String?
+  error          String?
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+  campaign       CommunicationCampaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user           User                         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  notification   Notification?                @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, userId])
+  @@index([campaignId])
+  @@index([userId])
+  @@index([notificationId])
+  @@index([status])
+}
+
+model NotificationPreference {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  category     String
+  inAppEnabled Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([userId])
+  @@index([category])
+}
+
+model GroupMembership {
+  id               Int            @id @default(autoincrement())
+  schoolId         Int
+  studentProfileId Int
+  studentGroupId   Int
+  joinedAt         DateTime       @default(now())
+  leftAt           DateTime?
+  status           MemberStatus   @default(ACTIVE)
+  leftReason       String?
+  note             String?
+  bookIssued       Boolean        @default(false)
+  school           School         @relation(fields: [schoolId], references: [id])
+  studentGroup     StudentGroup   @relation("GroupMemberships", fields: [studentGroupId], references: [id])
+  studentProfile   StudentProfile @relation("MembershipProfile", fields: [studentProfileId], references: [id])
+
+  @@unique([studentProfileId, studentGroupId])
+  @@index([schoolId])
+  @@index([studentGroupId])
+  @@index([studentProfileId])
+  @@index([studentGroupId, status])
+}
+
+model SessionStudent {
+  id               Int            @id @default(autoincrement())
+  schoolId         Int
+  lessonSessionId  Int
+  studentProfileId Int
+  snappedAt        DateTime       @default(now())
+  attendance       Attendance?
+  lessonSession    LessonSession  @relation(fields: [lessonSessionId], references: [id], onDelete: Restrict)
+  school           School         @relation(fields: [schoolId], references: [id])
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@unique([lessonSessionId, studentProfileId])
+  @@index([schoolId])
+  @@index([lessonSessionId])
+  @@index([studentProfileId])
+}
+
+model StudentPayment {
+  id               Int            @id @default(autoincrement())
+  schoolId         Int
+  studentProfileId Int
+  creditsAdded     Int
+  amount           Decimal        @db.Decimal(10, 2)
+  pricePerCredit   Decimal        @db.Decimal(10, 2)
+  method           PaymentMethod  @default(CASH)
+  note             String?
+  createdById      Int?
+  createdAt        DateTime       @default(now())
+  idempotencyKey   String?
+  cancelledAt      DateTime?
+  cancelledById    Int?
+  createdBy        User?          @relation("StudentPaymentCreator", fields: [createdById], references: [id])
+  school           School         @relation(fields: [schoolId], references: [id])
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId])
+  @@index([studentProfileId])
+  @@index([schoolId, createdAt])
+}
+
+model UserPasskey {
+  id         String   @id
+  userId     Int
+  publicKey  Bytes
+  counter    BigInt
+  deviceType String
+  backedUp   Boolean  @default(false)
+  transports String?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  token     String    @unique
+  userId    Int
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model ScheduleActionLog {
+  id         Int            @id @default(autoincrement())
+  schoolId   Int
+  sessionId  Int?
+  blockId    Int?
+  groupId    Int?
+  userId     Int
+  action     String
+  details    String?
+  createdAt  DateTime       @default(now())
+  after      Json?
+  before     Json?
+  entityType String         @default("session")
+  ipAddress  String?
+  reason     String?
+  block      LessonBlock?   @relation(fields: [blockId], references: [id], onDelete: SetNull)
+  group      StudentGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  school     School         @relation(fields: [schoolId], references: [id])
+  session    LessonSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  user       User           @relation(fields: [userId], references: [id])
+
+  @@index([schoolId, createdAt])
+  @@index([sessionId])
+  @@index([blockId])
+  @@index([groupId])
+  @@index([userId, createdAt])
+}
+
+model ScheduleException {
+  id          Int            @id @default(autoincrement())
+  schoolId    Int
+  type        ExceptionType
+  scope       ExceptionScope
+  recurring   Boolean        @default(false)
+  days        Int[]
+  startDate   DateTime
+  endDate     DateTime?
+  teacherId   Int?
+  cabinetId   Int?
+  groupId     Int?
+  reason      String?
+  createdById Int
+  createdAt   DateTime       @default(now())
+  createdBy   User           @relation("ExceptionCreator", fields: [createdById], references: [id])
+  school      School         @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId, startDate])
+  @@index([schoolId, scope])
+  @@index([teacherId, startDate])
+  @@index([cabinetId, startDate])
+}
+
+model LessonSessionArchive {
+  id                 Int           @id
+  schoolId           Int
+  lessonBlockId      Int
+  date               DateTime
+  teacherId          Int?
+  teacherIdSnap      Int?
+  cabinetIdSnap      Int?
+  startTimeSnap      String?
+  endTimeSnap        String?
+  status             SessionStatus
+  isManualDate       Boolean       @default(false)
+  dateOverrideFrom   DateTime?
+  isMakeup           Boolean       @default(false)
+  makeupForSessionId Int?
+  createdAt          DateTime
+  archivedAt         DateTime      @default(now())
+
+  @@index([schoolId, date])
+  @@index([lessonBlockId])
+}
+
+model AttendanceArchive {
+  id               Int              @id
+  schoolId         Int
+  lessonSessionId  Int
+  studentProfileId Int
+  status           AttendanceStatus
+  creditDeducted   Boolean
+  createdAt        DateTime
+  archivedAt       DateTime         @default(now())
+
+  @@index([schoolId])
+  @@index([lessonSessionId])
+  @@index([studentProfileId])
+}
+
+model AttendanceMonthlySummary {
+  id               Int            @id @default(autoincrement())
+  schoolId         Int
+  studentProfileId Int
+  year             Int
+  month            Int
+  totalSessions    Int
+  attended         Int
+  absent           Int
+  late             Int
+  creditsDeducted  Int            @default(0)
+  archivedAt       DateTime       @default(now())
+  school           School         @relation(fields: [schoolId], references: [id])
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@unique([schoolId, studentProfileId, year, month])
+  @@index([schoolId, studentProfileId])
+  @@index([schoolId, year, month])
+}
+
+model ParentProfile {
+  id        Int           @id @default(autoincrement())
+  userId    Int           @unique
+  schoolId  Int
+  deletedAt DateTime?
+  children  ParentChild[]
+  school    School        @relation(fields: [schoolId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([schoolId])
+}
+
+model ParentChild {
+  id               Int            @id @default(autoincrement())
+  parentProfileId  Int
+  studentProfileId Int
+  parentProfile    ParentProfile  @relation(fields: [parentProfileId], references: [id])
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@unique([parentProfileId, studentProfileId])
+  @@index([parentProfileId])
+  @@index([studentProfileId])
+}
+
+model GroupProgression {
+  id          Int      @id @default(autoincrement())
+  schoolId    Int
+  fromGroupId Int
+  toGroupId   Int
+  fromLevel   String
+  fromChapter Int
+  toLevel     String
+  toChapter   Int
+  actorId     Int
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  school    School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  fromGroup StudentGroup @relation("ProgressionFrom", fields: [fromGroupId], references: [id], onDelete: Restrict)
+  toGroup   StudentGroup @relation("ProgressionTo", fields: [toGroupId], references: [id], onDelete: Restrict)
+  actor     User         @relation("ProgressionActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId])
+  @@index([fromGroupId])
+  @@index([toGroupId])
+  @@index([actorId])
+}
+
+model Invoice {
+  id               Int           @id @default(autoincrement())
+  schoolId         Int
+  studentProfileId Int
+  status           InvoiceStatus @default(DRAFT)
+  totalAmount      Decimal       @default(0) @db.Decimal(12, 2)
+  paidAmount       Decimal       @default(0) @db.Decimal(12, 2)
+  currencyCode     String        @default("KGS")
+  dueDate          DateTime?
+  issuedAt         DateTime?
+  voidedAt         DateTime?
+  note             String?
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  createdById      Int
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  school         School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  studentProfile StudentProfile      @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  createdBy      User                @relation("InvoiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  lines          InvoiceLine[]
+  allocations    PaymentAllocation[]
+
+  @@index([schoolId, studentProfileId])
+  @@index([schoolId, status])
+  @@index([schoolId, dueDate])
+}
+
+model InvoiceLine {
+  id             Int             @id @default(autoincrement())
+  invoiceId      Int
+  type           InvoiceLineType
+  description    String
+  quantity       Decimal         @db.Decimal(10, 2)
+  unitPrice      Decimal         @db.Decimal(12, 2)
+  amount         Decimal         @db.Decimal(12, 2)
+  creditsToIssue Int?
+  groupId        Int?
+  lessonBlockId  Int?
+  periodStart    DateTime?
+  periodEnd      DateTime?
+
+  invoice     Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  group       StudentGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  lessonBlock LessonBlock?   @relation(fields: [lessonBlockId], references: [id], onDelete: SetNull)
+  issuances   CreditIssuance[]
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id               Int           @id @default(autoincrement())
+  schoolId         Int
+  studentProfileId Int
+  amount           Decimal       @db.Decimal(12, 2)
+  method           PaymentMethod @default(CASH)
+  status           PaymentStatus @default(CONFIRMED)
+  paidAt           DateTime      @default(now())
+  receivedById     Int
+  note             String?
+  voidedAt         DateTime?
+  voidedById       Int?
+  refundedAt       DateTime?
+  refundedById     Int?
+  refundPaymentId  Int?
+  createdAt        DateTime      @default(now())
+
+  school         School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  studentProfile StudentProfile      @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  receivedBy     User                @relation("PaymentReceiver", fields: [receivedById], references: [id], onDelete: Restrict)
+  voidedBy       User?               @relation("PaymentVoider", fields: [voidedById], references: [id], onDelete: SetNull)
+  refundedBy     User?               @relation("PaymentRefunder", fields: [refundedById], references: [id], onDelete: SetNull)
+  refundPayment  Payment?            @relation("PaymentRefund", fields: [refundPaymentId], references: [id], onDelete: SetNull)
+  refunds        Payment[]           @relation("PaymentRefund")
+  allocations    PaymentAllocation[]
+  creditLogs     LessonCreditLog[]
+  refundEvents   PaymentRefund[]
+  idempotencyKey String?
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId, studentProfileId])
+  @@index([schoolId, paidAt])
+  @@index([schoolId, status])
+}
+
+model PaymentAllocation {
+  id        Int     @id @default(autoincrement())
+  paymentId Int
+  invoiceId Int
+  amount    Decimal @db.Decimal(12, 2)
+
+  payment   Payment          @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  invoice   Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  issuances CreditIssuance[]
+  refundAllocations PaymentRefundAllocation[]
+
+  @@unique([paymentId, invoiceId])
+  @@index([invoiceId])
+  @@index([paymentId])
+}
+
+model CreditIssuance {
+  id                  Int       @id @default(autoincrement())
+  schoolId            Int
+  paymentAllocationId Int
+  invoiceLineId       Int
+  studentProfileId    Int
+  creditsIssued       Int
+  lessonCreditLogId   Int?      @unique
+  issuedAt            DateTime  @default(now())
+  issuedById          Int
+  reversedAt          DateTime?
+  reversedById        Int?
+  reversalLogId       Int?      @unique
+  createdAt           DateTime  @default(now())
+
+  school            School            @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  paymentAllocation PaymentAllocation @relation(fields: [paymentAllocationId], references: [id], onDelete: Restrict)
+  invoiceLine       InvoiceLine       @relation(fields: [invoiceLineId], references: [id], onDelete: Restrict)
+  studentProfile    StudentProfile    @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  issuedBy          User              @relation("IssuanceActor", fields: [issuedById], references: [id], onDelete: Restrict)
+  reversedBy        User?             @relation("IssuanceReverser", fields: [reversedById], references: [id], onDelete: SetNull)
+  lessonCreditLog   LessonCreditLog?  @relation("IssuanceLog", fields: [lessonCreditLogId], references: [id], onDelete: SetNull)
+  reversalLog       LessonCreditLog?  @relation("IssuanceReversalLog", fields: [reversalLogId], references: [id], onDelete: SetNull)
+  reversals         CreditIssuanceReversal[]
+  financialAdjustments FinancialAdjustment[]
+
+  @@unique([paymentAllocationId, invoiceLineId])
+  @@index([schoolId])
+  @@index([studentProfileId])
+  @@index([invoiceLineId])
+  @@index([paymentAllocationId])
+}
+
+model PaymentRefund {
+  id            Int          @id @default(autoincrement())
+  schoolId      Int
+  paymentId     Int
+  amount        Decimal      @db.Decimal(12, 2)
+  reason        String
+  status        RefundStatus @default(PENDING)
+  createdById   Int
+  confirmedById Int?
+  voidedById    Int?
+  createdAt     DateTime     @default(now())
+  confirmedAt   DateTime?
+  voidedAt      DateTime?
+  idempotencyKey String?
+
+  school      School                    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  payment     Payment                   @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  createdBy   User                      @relation("RefundCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  confirmedBy User?                     @relation("RefundConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+  voidedBy    User?                     @relation("RefundVoider", fields: [voidedById], references: [id], onDelete: SetNull)
+  allocations PaymentRefundAllocation[]
+  adjustments FinancialAdjustment[]
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId])
+  @@index([paymentId])
+  @@index([schoolId, status])
+}
+
+model PaymentRefundAllocation {
+  id                  Int      @id @default(autoincrement())
+  refundId            Int
+  paymentAllocationId Int
+  amount              Decimal  @db.Decimal(12, 2)
+  createdAt           DateTime @default(now())
+
+  refund            PaymentRefund            @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  paymentAllocation PaymentAllocation        @relation(fields: [paymentAllocationId], references: [id], onDelete: Restrict)
+  creditReversals   CreditIssuanceReversal[]
+  adjustments       FinancialAdjustment[]
+
+  @@unique([refundId, paymentAllocationId])
+  @@index([refundId])
+  @@index([paymentAllocationId])
+}
+
+model CreditIssuanceReversal {
+  id                        Int      @id @default(autoincrement())
+  creditIssuanceId          Int
+  paymentRefundAllocationId Int?
+  creditsReversed           Int
+  lessonCreditLogId         Int      @unique
+  createdAt                 DateTime @default(now())
+  createdById               Int
+  voidedAt                  DateTime?
+  voidedById                Int?
+  voidLogId                 Int?     @unique
+
+  creditIssuance          CreditIssuance           @relation(fields: [creditIssuanceId], references: [id], onDelete: Restrict)
+  paymentRefundAllocation PaymentRefundAllocation? @relation(fields: [paymentRefundAllocationId], references: [id], onDelete: Restrict)
+  lessonCreditLog         LessonCreditLog          @relation("CreditReversalLog", fields: [lessonCreditLogId], references: [id], onDelete: Restrict)
+  createdBy               User                     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  voidedBy                User?                    @relation("CreditReversalVoider", fields: [voidedById], references: [id], onDelete: SetNull)
+  voidLog                 LessonCreditLog?         @relation("CreditReversalVoidLog", fields: [voidLogId], references: [id], onDelete: SetNull)
+
+  @@unique([creditIssuanceId, paymentRefundAllocationId])
+  @@index([creditIssuanceId])
+  @@index([paymentRefundAllocationId])
+}
+
+model FinancialAdjustment {
+  id                        Int                       @id @default(autoincrement())
+  schoolId                  Int
+  studentProfileId          Int
+  type                      FinancialAdjustmentType
+  status                    FinancialAdjustmentStatus @default(ACTIVE)
+  amountMoney               Decimal?                  @db.Decimal(12, 2)
+  amountCredits             Int?
+  reason                    String
+  createdById               Int
+  voidedById                Int?
+  paymentRefundId           Int?
+  paymentRefundAllocationId Int?
+  creditIssuanceId          Int?
+  lessonCreditLogId         Int?                      @unique
+  createdAt                 DateTime                  @default(now())
+  voidedAt                  DateTime?
+
+  school                  School                   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  studentProfile          StudentProfile           @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  createdBy               User                     @relation("FinancialAdjustmentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  voidedBy                User?                    @relation("FinancialAdjustmentVoider", fields: [voidedById], references: [id], onDelete: SetNull)
+  paymentRefund           PaymentRefund?           @relation(fields: [paymentRefundId], references: [id], onDelete: SetNull)
+  paymentRefundAllocation PaymentRefundAllocation? @relation(fields: [paymentRefundAllocationId], references: [id], onDelete: SetNull)
+  creditIssuance          CreditIssuance?          @relation(fields: [creditIssuanceId], references: [id], onDelete: SetNull)
+  lessonCreditLog         LessonCreditLog?         @relation(fields: [lessonCreditLogId], references: [id], onDelete: SetNull)
+
+  @@unique([paymentRefundAllocationId, creditIssuanceId, type])
+  @@index([schoolId])
+  @@index([studentProfileId])
+  @@index([paymentRefundId])
+  @@index([paymentRefundAllocationId])
+  @@index([creditIssuanceId])
+  @@index([schoolId, type])
+}
+
+enum BillingMode {
+  PER_LESSON
+  CALENDAR_MONTH
+}
+
+model SchoolFinanceConfig {
+  id                Int      @id @default(autoincrement())
+  schoolId          Int      @unique
+  basePrice         Decimal  @default(5000) @db.Decimal(10, 2)
+  billingDays       Int      @default(26)
+  billingMode       BillingMode @default(PER_LESSON)
+  currency          String   @default("KGS")
+  defaultSalaryRate Decimal  @default(800) @db.Decimal(10, 2)
+  paymentCash       Boolean  @default(true)
+  paymentCard       Boolean  @default(false)
+  paymentMbank      Boolean  @default(true)
+  paymentOptima     Boolean  @default(false)
+  mbankNumber       String?
+  paymentReceiver   String?
+  updatedAt         DateTime @updatedAt
+  updatedById       Int?
+  pricePerLesson    Int      @default(193)
+  freezeWindowHours      Int      @default(24)
+  freezeDeadlineHours    Int?
+  allowStudentSelfFreeze Boolean  @default(true)
+  school            School   @relation(fields: [schoolId], references: [id])
+  updatedBy         User?    @relation("FinanceConfigUpdater", fields: [updatedById], references: [id])
+
+  @@index([schoolId])
+}
+
+model Expense {
+  id               Int             @id @default(autoincrement())
+  schoolId         Int
+  amount           Decimal         @db.Decimal(10, 2)
+  category         ExpenseCategory @default(OTHER)
+  description      String?
+  expenseDate      DateTime
+  teacherId        Int?
+  teacherPaymentId Int?            @unique
+  createdById      Int?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  createdBy        User?           @relation("ExpenseCreator", fields: [createdById], references: [id])
+  school           School          @relation(fields: [schoolId], references: [id])
+  teacher          StaffProfile?   @relation(fields: [teacherId], references: [id])
+  teacherPayment   TeacherPayment? @relation(fields: [teacherPaymentId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([schoolId, expenseDate])
+  @@index([schoolId, category])
+  @@index([teacherId])
+}
+
+model MarketingCampaign {
+  id        Int              @id @default(autoincrement())
+  schoolId  Int
+  name      String
+  source    String
+  createdAt DateTime         @default(now())
+  school    School           @relation(fields: [schoolId], references: [id])
+  leads     Lead[]
+  spends    MarketingSpend[]
+
+  @@index([schoolId])
+  @@index([schoolId, source])
+}
+
+model MarketingSpend {
+  id         Int                @id @default(autoincrement())
+  schoolId   Int
+  campaignId Int?
+  source     String
+  amount     Decimal            @db.Decimal(10, 2)
+  spendDate  DateTime
+  note       String?
+  createdAt  DateTime           @default(now())
+  campaign   MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  school     School             @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@index([schoolId, spendDate])
+  @@index([schoolId, source])
+  @@index([campaignId])
+}
+
+model Lead {
+  id               Int                @id @default(autoincrement())
+  schoolId         Int
+  campaignId       Int?
+  studentProfileId Int?
+  firstName        String?
+  lastName         String?
+  phone            String?
+  email            String?
+  source           String             @default("Organic")
+  status           LeadStatus         @default(NEW)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  trialAt          DateTime?
+  trialAttendedAt  DateTime?
+  paidAt           DateTime?
+  becameActiveAt   DateTime?
+  renewedAt        DateTime?
+  lostAt           DateTime?
+  note             String?
+  campaign         MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  school           School             @relation(fields: [schoolId], references: [id])
+  studentProfile   StudentProfile?    @relation(fields: [studentProfileId], references: [id], onDelete: SetNull)
+  attributions     LeadAttribution[]
+
+  @@index([schoolId])
+  @@index([schoolId, createdAt])
+  @@index([schoolId, source])
+  @@index([schoolId, status])
+  @@index([campaignId])
+  @@index([studentProfileId])
+}
+
+model LeadAttribution {
+  id           Int       @id @default(autoincrement())
+  schoolId     Int
+  leadId       Int
+  touchType    String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  utmContent   String?
+  utmTerm      String?
+  referrer     String?
+  landingPage  String?
+  gclid        String?
+  fbclid       String?
+  yclid        String?
+  ttclid       String?
+  rawParams    Json?
+  firstTouchAt DateTime?
+  lastTouchAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  school       School    @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@index([leadId])
+  @@index([utmSource])
+  @@index([utmMedium])
+  @@index([utmCampaign])
+  @@index([createdAt])
+  @@index([schoolId, createdAt])
+}
+
+model NpsResponse {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  score     Int
+  comment   String?
+  createdAt DateTime @default(now())
+  school    School   @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@index([schoolId, createdAt])
+}
+
+model Webhook {
+  id              Int               @id @default(autoincrement())
+  schoolId        Int
+  url             String
+  events          String[]
+  secret          String
+  isActive        Boolean           @default(true)
+  failureCount    Int               @default(0)
+  lastDeliveryAt  DateTime?
+  lastStatus      String?
+  secretRotatedAt DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deliveries      WebhookDelivery[]
+  school          School            @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+}
+
+model WebhookDelivery {
+  id                  Int       @id @default(autoincrement())
+  schoolId            Int
+  webhookId           Int
+  event               String
+  status              String
+  attempts            Int       @default(0)
+  payload             Json
+  responseCode        Int?
+  responseBodySnippet String?
+  errorMessage        String?
+  nextRetryAt         DateTime?
+  deliveredAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  school              School    @relation(fields: [schoolId], references: [id])
+  webhook             Webhook   @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([webhookId])
+  @@index([event])
+  @@index([status])
+  @@index([createdAt])
+  @@index([nextRetryAt])
+}
+
+model IntegrationConnection {
+  id               Int                  @id @default(autoincrement())
+  schoolId         Int
+  provider         String
+  category         String
+  status           String
+  enabled          Boolean              @default(false)
+  displayName      String?
+  credentialStatus String?
+  scopes           String[]             @default([])
+  lastSyncAt       DateTime?
+  lastError        String?
+  connectedAt      DateTime?
+  disconnectedAt   DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  school           School               @relation(fields: [schoolId], references: [id])
+  syncLogs         IntegrationSyncLog[]
+
+  @@index([schoolId])
+  @@index([provider])
+  @@index([status])
+  @@index([enabled])
+  @@index([updatedAt])
+}
+
+model IntegrationSyncLog {
+  id           Int                   @id @default(autoincrement())
+  schoolId     Int
+  connectionId Int
+  provider     String
+  eventType    String
+  status       String
+  externalId   String?
+  message      String?
+  metadata     Json?
+  occurredAt   DateTime?
+  createdAt    DateTime              @default(now())
+  connection   IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  school       School                @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@index([connectionId])
+  @@index([provider])
+  @@index([eventType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model TeacherRateLog {
+  id             Int          @id @default(autoincrement())
+  staffProfileId Int
+  staffProfile   StaffProfile @relation(fields: [staffProfileId], references: [id])
+  rate           Decimal      @db.Decimal(10, 2)
+  effectiveFrom  DateTime
+  changedById    Int
+  createdAt      DateTime     @default(now())
+
+  @@index([staffProfileId, effectiveFrom])
+}
+
+model SchoolSchedulePolicy {
+  id            Int       @id @default(autoincrement())
+  schoolId      Int
+  school        School    @relation(fields: [schoolId], references: [id])
+  activeDays    Int[]
+  workStart     String
+  workEnd       String
+  slotDuration  Int
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdById   Int
+  createdAt     DateTime  @default(now())
+
+  @@index([schoolId, effectiveFrom])
+  @@index([schoolId, effectiveFrom, effectiveTo])
+}
+
+model SchoolPolicyLog {
+  id           Int      @id @default(autoincrement())
+  schoolId     Int
+  school       School   @relation(fields: [schoolId], references: [id])
+  activeDays   Int[]
+  workStart    String
+  workEnd      String
+  slotDuration Int
+  changedAt    DateTime @default(now())
+  changedById  Int
+
+  @@index([schoolId, changedAt])
+}
+
+model ResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tokenHash String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum Role {
+  SUPERADMIN
+  OWNER
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum CommunicationChannel {
+  IN_APP
+}
+
+enum CommunicationCampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+  SCHEDULED
+}
+
+enum CommunicationRecipientStatus {
+  PENDING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+enum CommunicationTargetType {
+  ROLES
+  USERS
+  GROUPS
+}
+
+enum BlockType {
+  GRAMMAR
+  SPEAKING_CLUB
+}
+
+enum BlockStatus {
+  UPCOMING
+  COMPLETED
+  CANCELLED
+}
+
+enum SessionStatus {
+  UPCOMING
+  COMPLETED
+  CANCELLED
+  IN_PROGRESS
+  LOCKED
+  INVALIDATED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  FROZEN
+}
+
+enum AttendanceAuditAction {
+  CREATE
+  UPDATE
+  FINALIZE
+  REOPEN
+}
+
+enum EnrollmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum GroupStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+}
+
+enum AdjType {
+  FINE
+  ADVANCE
+  BONUS
+}
+
+enum ManualEntryType {
+  ADD
+  REMOVE
+}
+
+enum SubscriptionPlan {
+  TRIAL
+  STARTER
+  OPTIMA
+  NETWORK
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  GRACE_PERIOD
+  OVERDUE
+  BLOCKED
+}
+
+enum MemberStatus {
+  ACTIVE
+  PAUSED
+  WITHDRAWN
+}
+
+enum ExceptionType {
+  TEACHER_UNAVAILABLE
+  CABINET_UNAVAILABLE
+  GROUP_RESCHEDULED
+  EXAM_PERIOD
+  HOLIDAY_CUSTOM
+}
+
+enum ExceptionScope {
+  SCHOOL
+  TEACHER
+  CABINET
+  GROUP
+}
+
+enum CreditLogType {
+  DEBIT
+  REFUND
+  MANUAL_ADD
+  MANUAL_DEDUCT
+  CORRECTION
+  FREEZE_SKIP
+  GIFT
+  PAYMENT
+  IMPORT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  VOID
+  OVERDUE
+}
+
+enum InvoiceLineType {
+  TUITION
+  MATERIAL
+  REGISTRATION
+  DISCOUNT
+  CUSTOM
+}
+
+enum PaymentStatus {
+  CONFIRMED
+  VOIDED
+  REFUNDED
+}
+
+enum RefundStatus {
+  PENDING
+  CONFIRMED
+  VOIDED
+}
+
+enum FinancialAdjustmentType {
+  CREDIT_GRANT
+  CREDIT_DEDUCT
+  BALANCE_DEBT
+  BALANCE_CREDIT
+  ACCOUNTING_CORRECTION
+  MIGRATION_CORRECTION
+}
+
+enum FinancialAdjustmentStatus {
+  ACTIVE
+  VOIDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+}
+
+enum ExpenseCategory {
+  SALARY
+  RENT
+  MARKETING
+  UTILITIES
+  MATERIALS
+  SOFTWARE
+  TAX
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  TRIAL_SCHEDULED
+  TRIAL_ATTENDED
+  PAID
+  ACTIVE
+  RENEWED
+  LOST
+}
+
+model StaffInvite {
+  id          Int       @id @default(autoincrement())
+  schoolId    Int
+  email       String
+  role        Role
+  firstName   String?
+  lastName    String?
+  phone       String?
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([email])
+  @@index([expiresAt])
+}
+
+// ─── Phase 4: DB-backed idempotency ──────────────────────────────────────────
+//
+// Provides race-safe first-write detection for financial endpoints.
+// The unique constraint on (schoolId, scopeType, actorId, endpoint, key)
+// guarantees only one IN_PROGRESS row can exist per logical operation.
+//
+// NOTE(Phase 7+): scopeType=SYSTEM/WEBHOOK requires partial unique indexes
+// per scope type to correctly handle NULL actorId (PostgreSQL treats
+// NULL != NULL in standard B-tree unique indexes). Phase 4 uses USER scope
+// only where both schoolId and actorId are always non-null.
+// See ARCHITECTURAL_DECISIONS.md §Idempotency-Scope.
+model IdempotencyKey {
+  id             Int                  @id @default(autoincrement())
+  schoolId       Int?
+  actorId        Int?
+  scopeType      IdempotencyScopeType @default(USER)
+  endpoint       String
+  key            String
+  status         IdempotencyStatus    @default(IN_PROGRESS)
+  requestHash    String
+  startedAt      DateTime             @default(now())
+  responseBody   Json?
+  responseStatus Int?
+  expiresAt      DateTime
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@unique([schoolId, scopeType, actorId, endpoint, key])
+  @@index([expiresAt])
+  @@index([status, startedAt])
+}
+
+enum IdempotencyScopeType {
+  USER
+  SYSTEM
+  WEBHOOK
+}
+
+enum IdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum FreezeType {
+  LESSON_SKIP
+  PERIOD
+}
+
+enum FreezeStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model StudentFreeze {
+  id               Int          @id @default(autoincrement())
+  schoolId         Int
+  studentProfileId Int
+  type             FreezeType
+  // LESSON_SKIP: lessonSessionId required, startDate/endDate null
+  // PERIOD:      lessonSessionId null, startDate required, endDate nullable (null = open-ended)
+  lessonSessionId  Int?
+  startDate        DateTime?
+  endDate          DateTime?
+  reason           String?
+  status           FreezeStatus @default(ACTIVE)
+  createdById      Int
+  cancelledById    Int?
+  cancelledAt      DateTime?
+  createdAt        DateTime     @default(now())
+
+  school          School         @relation(fields: [schoolId], references: [id])
+  studentProfile  StudentProfile @relation(fields: [studentProfileId], references: [id])
+  lessonSession   LessonSession? @relation(fields: [lessonSessionId], references: [id], onDelete: SetNull)
+  createdBy       User           @relation("FreezeCreator", fields: [createdById], references: [id])
+  cancelledBy     User?          @relation("FreezeCanceller", fields: [cancelledById], references: [id])
+
+  @@index([schoolId, studentProfileId, status])
+  @@index([schoolId, startDate, endDate])
+  @@index([lessonSessionId])
+  @@index([studentProfileId, status, startDate])
+}
+
+// Singleton row (id always 1) for platform-wide config authored by SUPERADMIN.
+// Not tenant-scoped — read by every school, written only via /superadmin/help.
+model PlatformSettings {
+  id        Int      @id @default(1)
+  help      Json     @default("[]")
+  updatedAt DateTime @updatedAt
+}

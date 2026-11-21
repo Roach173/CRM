@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.production
+*.log
+.DS_Store
+
+# Temporary diagnostic SQL scripts
+*.sql
+# Allow Prisma migration SQL files to be tracked
+!**/prisma/migrations/**/*.sql
+
+# Local Claude Code settings
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/

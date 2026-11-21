@@ -1,44 +1,66 @@
-Shamdan — School Management Platform
+# Shamdan — School Management Platform
 
-Shamdan is a multi-tenant platform for language schools, bringing scheduling, student and teacher records, attendance, lesson credits, and school operations into one application.
+Multi-tenant SaaS for language schools: scheduling, attendance, a lesson-credit ledger, payroll, finance and communications — one app for owners, admins, teachers and students.
 
-> Portfolio project. This repository is a public presentation copy. Before sharing it with recruiters, publish the project files in browsable form and confirm that the code, sample data, screenshots, and documentation are approved for public release.
+**Stack:** React 19 · TypeScript · Vite · Tailwind · Node.js / Express · PostgreSQL · Prisma · Jest · Playwright · GitHub Actions
+
+> Built by a team of three over ~8 months (760+ commits). This is a public snapshot of the source; the private repo's history was not carried over.
 
 ## What it does
 
-- **Schedule lessons:** recurring schedules, room and teacher views, and responsive calendar layouts.
-- **Manage students and groups:** enrollment, cohort membership, and capacity-aware workflows.
-- **Track attendance and lesson credits:** session records and a ledger that makes balance changes traceable.
-- **Support school operations:** subscription and finance workflows, summaries, and administrator controls.
-- **Protect tenant data:** school-level separation, role-aware access, rate limiting, and authentication options including TOTP and passkeys.
-- **Coordinate communications:** notifications and campaigns with audience targeting, scheduling, and delivery history.
+- **Scheduling** — recurring lesson blocks generate dated sessions; room / teacher / week views, conflict checks, substitutions, mobile layout.
+- **Attendance → credits** — marking attendance deducts lesson credits exactly once (idempotent), and every balance change is written to an auditable ledger.
+- **Finance** — payments, per-lesson vs calendar-month billing, carry-over wallet, finance dashboard, invoices.
+- **Payroll** — teacher rates, salary calculation from attended lessons, payslips, corrections and voids.
+- **Multi-tenancy & security** — school-level data isolation, 5 roles (SuperAdmin → Student), JWT with short-lived access tokens, TOTP 2FA, passkeys (WebAuthn), rate limiting.
+- **Communications** — in-app notifications and campaigns with audience targeting, scheduling and delivery logs.
+- **PWA** — installable on phone or desktop.
 
-## Engineering highlights
+## My role (Roach / [@roach173](https://github.com/roach173))
 
-- Connected recurring schedule blocks to dated sessions, attendance, and lesson-credit transactions so operational history can be followed.
-- Improved schedule usability with room-view zoom, group color cues, shared theme tokens, day headers, and mobile layouts.
-- Added data-integrity and operational safeguards across scheduling, finance, authentication, and notification workflows.
+Full-stack contributor (~200 commits). Areas I owned or led:
 
-## Technology
+- **Finance & billing** — finance dashboard overhaul, billing modes with `paidUntil` derivation, proportional billing, carry-over wallet, credit statements.
+- **Payroll** — salary module refactor, payslips, salary history; fixed 14 review-found bugs (tenant isolation, rate, timezone, race conditions) and removed N+1 queries.
+- **Auth & security** — in-memory access tokens, password policy, login timing-attack fix, multi-device sessions, tenant-isolation and financial-immutability audit fixes.
+- **Schedule UI** — rooms view, week grid, theme system, mobile slot layout and a two-batch mobile UX audit.
+- **Observability** — structured logging with pino, HTTP access logs, Sentry error/replay reporting, a no-`console` CI guard.
 
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, React Router 7, PWA
-- **Backend:** Node.js, Express, TypeScript
-- **Database:** PostgreSQL with Prisma ORM
-- **Local infrastructure:** Docker Compose
-- **Quality:** Jest and Playwright
+Teammates: [@UchihaAdik](https://github.com/UchihaAdik) (Adil) and Kai.
 
-## Repository contents
+## Architecture
 
-The public repository should contain the extracted project source and documentation so visitors can browse the implementation directly. Avoid using a ZIP archive as the only project file. Keep secrets, real customer data, production configuration, and private operational details out of the public copy.
+```
+client/  React SPA (Vite, PWA)  ──HTTP/JSON──▶  server/  Express API ──Prisma──▶ PostgreSQL
+                                                   │
+                                                   └─ cron: rolling 14-day session window, cleanup
+```
 
-## Getting started
+Core domain chain: `StudentGroup` → `LessonBlock` (recurring template) → `LessonSession` (dated lesson, snapshots teacher/room/time) → `Attendance` → `LessonCreditLog`.
 
-Setup instructions depend on the project files included in this public copy. Add verified prerequisites, environment-variable guidance, database setup, and run commands here after the source tree is published. Never commit real credentials or `.env` files.
+Design docs live in [`eduschool-app/`](eduschool-app):
+[System blueprint](eduschool-app/SYSTEM_BLUEPRINT.md) ·
+[Architecture](eduschool-app/ARCHITECTURE.md) ·
+[Architectural decisions](eduschool-app/ARCHITECTURAL_DECISIONS.md) ·
+[API contracts](eduschool-app/API_CONTRACTS.md) ·
+[DB constraints](eduschool-app/DATABASE_CONSTRAINTS.md) ·
+[Testing strategy](eduschool-app/TESTING_STRATEGY.md) ·
+[Deployment](eduschool-app/DEPLOYMENT.md)
 
-## Screenshots or demo
+## Quality
 
-Add a few current screenshots or a short demo link here once you have approved public-facing visuals. Use synthetic data in screenshots.
+- 67 Prisma models, 120+ unit / integration / e2e test files (Jest + Playwright).
+- CI on every PR: TypeScript build, migrations against a real Postgres, tests, write-boundary and no-console checks ([`pr-checks.yml`](.github/workflows/pr-checks.yml)).
 
-## Project status
+## Run locally
 
-This repository presents a software project for portfolio review. It does not claim production availability or customer usage.
+Requires Node 20+ and Docker.
+
+```bash
+cd eduschool-app
+docker-compose up -d                      # PostgreSQL
+cp server/.env.example server/.env        # fill in local values
+cd server && npm install && npx prisma migrate deploy && npx prisma generate && cd ..
+cd client && npm install && cd ..
+npm install && npm run dev                # client + API
+```
