@@ -1,5 +1,7 @@
 # Shamdan — School Management Platform
 
+[![CI](https://github.com/roach173/CRM/actions/workflows/pr-checks.yml/badge.svg?branch=main)](https://github.com/roach173/CRM/actions/workflows/pr-checks.yml)
+
 **English** · [Русский](#русский)
 
 Multi-tenant SaaS for language schools: scheduling, attendance, a lesson-credit ledger, payroll, finance and communications — one app for owners, admins, teachers and students.
@@ -7,6 +9,11 @@ Multi-tenant SaaS for language schools: scheduling, attendance, a lesson-credit 
 **Stack:** React 19 · TypeScript · Vite · Tailwind · Node.js / Express · PostgreSQL · Prisma · Jest · Playwright · GitHub Actions
 
 > Built by a team of three over ~8 months (760+ commits). This is a public snapshot of the source; the private repo's history was not carried over.
+
+<p align="center">
+  <img src="docs/screenshots/attendance-demo.gif" alt="Marking attendance deducts lesson credits / Отметка посещаемости списывает кредиты" width="900">
+  <br><sub>Marking attendance and submitting it deducts one lesson credit per student and updates "paid until" dates.<br>Отметка и сдача посещаемости списывает по одному кредиту у каждого студента и обновляет дату «оплачено до».</sub>
+</p>
 
 ## Screenshots / Скриншоты
 
