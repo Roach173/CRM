@@ -1,25 +1,28 @@
 # Shamdan — School Management Platform
 
+**English** · [Русский](#русский)
+
 Multi-tenant SaaS for language schools: scheduling, attendance, a lesson-credit ledger, payroll, finance and communications — one app for owners, admins, teachers and students.
 
 **Stack:** React 19 · TypeScript · Vite · Tailwind · Node.js / Express · PostgreSQL · Prisma · Jest · Playwright · GitHub Actions
 
 > Built by a team of three over ~8 months (760+ commits). This is a public snapshot of the source; the private repo's history was not carried over.
 
-## Screenshots
+## Screenshots / Скриншоты
 
-*All data shown is synthetic.*
+*All data shown is synthetic. / Все данные на скриншотах вымышленные.*
 
-| Weekly schedule | Groups |
+| Weekly schedule / Расписание на неделю | Groups / Группы |
 |---|---|
 | ![Schedule](docs/screenshots/schedule.png) | ![Groups](docs/screenshots/groups.png) |
-| **Students & credit balances** | **Payments** |
+| **Students & credit balances / Студенты и баланс кредитов** | **Payments / Платежи** |
 | ![Students](docs/screenshots/students.png) | ![Finance](docs/screenshots/finance.png) |
 
 <p align="center">
-  <img src="docs/screenshots/mobile-schedule.png" width="260" alt="Mobile schedule">
+  <img src="docs/screenshots/mobile-schedule.png" width="260" alt="Mobile schedule / Мобильное расписание">
   &nbsp;&nbsp;
-  <img src="docs/screenshots/mobile-student.png" width="260" alt="Student dashboard (mobile)">
+  <img src="docs/screenshots/mobile-student.png" width="260" alt="Student dashboard / Кабинет студента">
+  <br><sub>Mobile: admin schedule · student dashboard / Мобильная версия: расписание администратора · кабинет студента</sub>
 </p>
 
 ## What it does
@@ -54,7 +57,7 @@ client/  React SPA (Vite, PWA)  ──HTTP/JSON──▶  server/  Express API �
 
 Core domain chain: `StudentGroup` → `LessonBlock` (recurring template) → `LessonSession` (dated lesson, snapshots teacher/room/time) → `Attendance` → `LessonCreditLog`.
 
-Design docs live in [`eduschool-app/`](eduschool-app):
+Design docs (in Russian/English) live in [`eduschool-app/`](eduschool-app):
 [System blueprint](eduschool-app/SYSTEM_BLUEPRINT.md) ·
 [Architecture](eduschool-app/ARCHITECTURE.md) ·
 [Architectural decisions](eduschool-app/ARCHITECTURAL_DECISIONS.md) ·
@@ -80,3 +83,54 @@ cd server && npm install && npx prisma migrate deploy && npx prisma generate && 
 cd client && npm install && cd ..
 npm install && npm run dev                # client + API
 ```
+
+---
+
+## Русский
+
+[English](#shamdan--school-management-platform) · **Русский**
+
+Мультитенантная SaaS-платформа для языковых школ: расписание, посещаемость, учёт уроков-кредитов, зарплата, финансы и коммуникации — одно приложение для владельцев, администраторов, преподавателей и студентов.
+
+**Стек:** React 19 · TypeScript · Vite · Tailwind · Node.js / Express · PostgreSQL · Prisma · Jest · Playwright · GitHub Actions
+
+> Разработано командой из трёх человек примерно за 8 месяцев (760+ коммитов). Это публичная копия исходного кода; история приватного репозитория не перенесена.
+
+### Возможности
+
+- **Расписание** — повторяющиеся блоки уроков автоматически создают занятия по датам; вид по кабинетам, преподавателям и неделям, проверка конфликтов, замены, мобильная версия.
+- **Посещаемость → кредиты** — отметка посещаемости списывает урок ровно один раз (идемпотентно), каждое изменение баланса записывается в журнал для аудита.
+- **Финансы** — платежи, оплата за урок или за календарный месяц, переносимый остаток, финансовая панель, счета.
+- **Зарплата** — ставки преподавателей, расчёт по проведённым урокам, расчётные листы, корректировки и аннулирование.
+- **Мультитенантность и безопасность** — изоляция данных каждой школы, 5 ролей (SuperAdmin → Student), JWT с короткоживущими токенами, двухфакторная аутентификация (TOTP), passkeys (WebAuthn), ограничение частоты запросов.
+- **Коммуникации** — уведомления внутри приложения и рассылки с выбором аудитории, отложенной отправкой и журналом доставки.
+- **PWA** — устанавливается на телефон или компьютер.
+
+### Моя роль (Roach / [@roach173](https://github.com/roach173))
+
+Full-stack разработчик (~200 коммитов). Направления, за которые я отвечал:
+
+- **Финансы и оплата** — переработка финансовой панели, режимы оплаты с расчётом `paidUntil`, пропорциональная оплата, переносимый остаток, выписка по кредитам.
+- **Зарплата** — рефакторинг модуля зарплаты, расчётные листы, история выплат; исправил 14 ошибок, найденных на код-ревью (изоляция школ, ставки, часовые пояса, гонки), убрал N+1 запросы.
+- **Авторизация и безопасность** — хранение токенов в памяти, политика паролей, защита логина от timing-атак, вход с нескольких устройств, исправления по аудиту изоляции данных и неизменяемости финансовых записей.
+- **Интерфейс расписания** — вид по кабинетам, недельная сетка, система тем, мобильная раскладка и два этапа мобильного UX-аудита.
+- **Мониторинг** — структурированные логи (pino), журнал HTTP-запросов, Sentry (ошибки и Replay), CI-проверка на отсутствие `console`.
+
+Команда: [@UchihaAdik](https://github.com/UchihaAdik) (Адиль) и Kai.
+
+### Архитектура
+
+Клиент — React SPA (Vite, PWA), сервер — Express API, база — PostgreSQL через Prisma. Cron поддерживает скользящее окно занятий на 14 дней вперёд.
+
+Основная цепочка: `StudentGroup` (группа) → `LessonBlock` (шаблон урока) → `LessonSession` (урок на конкретную дату, хранит снимок преподавателя/кабинета/времени) → `Attendance` (посещаемость) → `LessonCreditLog` (журнал кредитов).
+
+Документация — в папке [`eduschool-app/`](eduschool-app), ссылки выше.
+
+### Качество
+
+- 67 моделей Prisma, 120+ файлов тестов (unit / интеграционные / e2e на Jest и Playwright).
+- CI на каждый pull request: сборка TypeScript, миграции на реальном Postgres, тесты, проверки write-boundary и no-console.
+
+### Локальный запуск
+
+Нужны Node 20+ и Docker — команды те же, что в [разделе выше](#run-locally).
